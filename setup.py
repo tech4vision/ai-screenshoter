@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="ai-screenshooter",
-    version="1.0.0",
+    version="1.0.1",
     packages=find_packages(),
     py_modules=["ai_screenshot"],
     install_requires=[
@@ -16,8 +16,8 @@ setup(
             "ai-screenshooter=ai_screenshot:main",
         ],
     },
-    author="Victor Oliveira",
-    author_email="victor.soares@live.it",
+    author="Last Shot AI",
+    author_email="support@lastshot.ai",
     description="A CLI tool to capture and send AI-powered screenshots",
     url="https://github.com/tech4vision/ai-screenshoter",
     classifiers=[
