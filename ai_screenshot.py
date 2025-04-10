@@ -56,7 +56,7 @@ def get_active_window_bounds():
 
 def capture_screenshot():
     global screenshot_list
-    screenshot_path = f"/tmp/screenshot_{len(screenshot_list)}.jpg"
+    screenshot_path = f"screenshot_{len(screenshot_list)}.jpg"
 
     try:
         print("🔄 Refreshing active window detection...")
@@ -115,10 +115,10 @@ def send_screenshots():
 def on_press(key):
     current_keys.add(key)
     try:
-        if key == keyboard.KeyCode.from_char('s') and {keyboard.Key.ctrl_l, keyboard.Key.shift} <= current_keys:
+        if key == keyboard.KeyCode.from_char('c') and keyboard.Key.esc in current_keys:
             print("📸 Capturing screenshot...")
             capture_screenshot()
-        elif key == keyboard.KeyCode.from_char('t') and {keyboard.Key.ctrl_l, keyboard.Key.shift} <= current_keys:
+        elif key == keyboard.KeyCode.from_char('v') and keyboard.Key.esc in current_keys:
             print("📤 Sending all screenshots...")
             send_screenshots()
     except AttributeError:
@@ -140,8 +140,8 @@ def main():
     API_TOKEN = args.token
 
     print("📸 AI Screenshot CLI started.")
-    print("✅ Press Ctrl + Shift + S to capture a screenshot.")
-    print("✅ Press Ctrl + Shift + T to send all stored screenshots.")
+    print("✅ Press ESC + C to capture a screenshot.")
+    print("✅ Press ESC + V to send all stored screenshots.")
     print("📌 Running... (Press Ctrl + C to exit)")
 
     # Listen for hotkeys using pynput
