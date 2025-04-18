@@ -115,10 +115,10 @@ def send_screenshots():
 def on_press(key):
     current_keys.add(key)
     try:
-        if key == keyboard.KeyCode.from_char('c') and keyboard.Key.esc in current_keys:
+        if key == keyboard.Key.down and keyboard.Key.esc in current_keys:
             print("📸 Capturing screenshot...")
             capture_screenshot()
-        elif key == keyboard.KeyCode.from_char('v') and keyboard.Key.esc in current_keys:
+        elif key == keyboard.Key.up and keyboard.Key.esc in current_keys:
             print("📤 Sending all screenshots...")
             send_screenshots()
     except AttributeError:
