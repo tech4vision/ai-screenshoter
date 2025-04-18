@@ -140,8 +140,8 @@ def main():
     API_TOKEN = args.token
 
     print("📸 AI Screenshot CLI started.")
-    print("✅ Press ESC + C to capture a screenshot.")
-    print("✅ Press ESC + V to send all stored screenshots.")
+    print("✅ Press ESC + ↓ to capture a screenshot.")
+    print("✅ Press ESC + ↑ to send all stored screenshots.")
     print("📌 Running... (Press Ctrl + C to exit)")
 
     # Listen for hotkeys using pynput
