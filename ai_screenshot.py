@@ -101,7 +101,7 @@ def send_screenshots():
         return
 
     response = requests.post(
-        "https://api.ai-management.tech4vision.io/api/v1/sessions/code-challenge",
+        "https://service.tech4vision.net/ai-management-service/api/v1/sessions/code-challenge",
         headers={"Authorization": f"Bearer {API_TOKEN}"},
         files=files,
     )
