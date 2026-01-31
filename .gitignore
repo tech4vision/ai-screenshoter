@@ -132,3 +132,6 @@ celerybeat.pid
 .venv
 
 .idea
+
+# Claude Code
+CLAUDE.md
