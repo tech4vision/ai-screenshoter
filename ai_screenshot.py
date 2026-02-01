@@ -10,6 +10,11 @@ from pynput import keyboard
 
 screenshot_list = []
 API_TOKEN = None
+API_URL = None
+
+# Server URLs
+PROD_URL = "https://service.tech4vision.net/ai-management-service/api/v1/sessions/code-challenge"
+LOCAL_URL = "http://localhost:8082/api/v1/sessions/code-challenge"
 
 current_keys = set()
 
@@ -101,7 +106,7 @@ def send_screenshots():
         return
 
     response = requests.post(
-        "https://service.tech4vision.net/ai-management-service/api/v1/sessions/code-challenge",
+        API_URL,
         headers={"Authorization": f"Bearer {API_TOKEN}"},
         files=files,
     )
@@ -134,12 +139,16 @@ def main():
     parser = argparse.ArgumentParser(description="AI Screenshot CLI")
     parser.add_argument("start", help="Start listening for hotkeys")
     parser.add_argument("--token", required=True, help="API Token for authentication")
+    parser.add_argument("--local", action="store_true", help="Use localhost server instead of production")
 
     args = parser.parse_args()
-    global API_TOKEN
+    global API_TOKEN, API_URL
     API_TOKEN = args.token
+    API_URL = LOCAL_URL if args.local else PROD_URL
 
+    server_mode = "LOCAL" if args.local else "PRODUCTION"
     print("📸 AI Screenshot CLI started.")
+    print(f"🌐 Server: {server_mode} ({API_URL})")
     print("✅ Press ESC + ↓ to capture a screenshot.")
     print("✅ Press ESC + ↑ to send all stored screenshots.")
     print("📌 Running... (Press Ctrl + C to exit)")

@@ -135,3 +135,9 @@ celerybeat.pid
 
 # Claude Code
 CLAUDE.md
+
+# PyPI token
+.pypi-token
+
+# Screenshots
+screenshot*
