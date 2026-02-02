@@ -8,6 +8,7 @@ import time
 import subprocess
 import requests
 import pygetwindow as gw
+import pyperclip
 from pathlib import Path
 from PIL import ImageGrab
 from pynput import keyboard
@@ -269,6 +270,35 @@ def send_screenshots():
         logger.error(f"Error uploading screenshots: {e}")
 
 
+def send_clipboard_text():
+    """Send clipboard content to Code tab API."""
+    if not API_TOKEN:
+        logger.error("No API token provided!")
+        return
+
+    try:
+        text = pyperclip.paste()
+        if not text or not text.strip():
+            logger.warning("Clipboard is empty.")
+            return
+
+        response = requests.post(
+            f"{API_URL}/chat",
+            headers={
+                "Authorization": f"Bearer {API_TOKEN}",
+                "Content-Type": "application/json"
+            },
+            json={"message": text}
+        )
+
+        if response.status_code == 200:
+            logger.info("Text sent to Code tab successfully.")
+        else:
+            logger.error(f"Failed to send text: {response.text}")
+    except Exception as e:
+        logger.error(f"Error sending clipboard text: {e}")
+
+
 # ============ Keyboard Handlers ============
 
 def on_press(key):
@@ -280,6 +310,9 @@ def on_press(key):
         elif key == keyboard.Key.up and keyboard.Key.esc in current_keys:
             logger.info("Sending all screenshots...")
             send_screenshots()
+        elif key == keyboard.Key.right and keyboard.Key.esc in current_keys:
+            logger.info("Sending clipboard text to Code tab...")
+            send_clipboard_text()
     except AttributeError:
         pass
 
@@ -336,6 +369,7 @@ def cmd_start(args):
     logger.info(f"Server: {server_mode} ({API_URL})")
     logger.info("Press ESC + Down to capture a screenshot.")
     logger.info("Press ESC + Up to send all stored screenshots.")
+    logger.info("Press ESC + Right to send clipboard text to Code tab.")
     if not is_daemon:
         logger.info("Running... (Press Ctrl + C to exit)")
 
