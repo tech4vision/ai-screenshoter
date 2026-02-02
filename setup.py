@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="ai-screenshooter",
-    version="1.4.0",
+    version="1.5.0",
     packages=find_packages(),
     py_modules=["ai_screenshot"],
     install_requires=[
