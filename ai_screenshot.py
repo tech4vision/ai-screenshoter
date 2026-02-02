@@ -6,6 +6,7 @@ import logging
 import atexit
 import time
 import subprocess
+import threading
 import requests
 import pygetwindow as gw
 import pyperclip
@@ -18,7 +19,14 @@ from pynput import keyboard
 PID_FILE = Path.home() / ".ai-screenshooter.pid"
 LOG_FILE = Path.home() / ".ai-screenshooter.log"
 SCREENSHOT_DIR = Path.home() / ".ai-screenshooter" / "screenshots"
+AUDIO_DIR = Path.home() / ".ai-screenshooter" / "audio"
 TIMEOUT_SECONDS = 5 * 60 * 60  # 5 hours
+
+# Audio recording constants
+SAMPLE_RATE = 16000  # Whisper expects 16kHz
+CHANNELS = 1  # Mono audio
+WHISPER_MODEL = "base"  # Options: tiny, base, small, medium, large
+DOUBLE_TAP_THRESHOLD = 0.5  # 500ms window for double-tap
 
 # Server URLs
 PROD_URL = "https://service.tech4vision.net/ai-management-service/api/v1/sessions/code-challenge"
@@ -30,6 +38,13 @@ API_TOKEN = None
 API_URL = None
 current_keys = set()
 logger = logging.getLogger("ai-screenshooter")
+
+# Voice recording state
+is_recording = False
+audio_thread = None
+audio_data = []
+whisper_model = None  # Lazy-loaded on first use
+last_esc_time = 0  # For double-tap detection
 
 if sys.platform == "win32":
     import ctypes
@@ -299,12 +314,190 @@ def send_clipboard_text():
         logger.error(f"Error sending clipboard text: {e}")
 
 
+# ============ Voice Recording Functions ============
+
+def get_whisper_model():
+    """Lazy-load Whisper model on first use."""
+    global whisper_model
+    if whisper_model is None:
+        try:
+            from faster_whisper import WhisperModel
+            logger.info(f"Loading Whisper model '{WHISPER_MODEL}' (first time may download ~74MB)...")
+            whisper_model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+            logger.info("Whisper model loaded successfully.")
+        except Exception as e:
+            logger.error(f"Failed to load Whisper model: {e}")
+            return None
+    return whisper_model
+
+
+def record_audio():
+    """Record audio from microphone in a separate thread."""
+    global audio_data, is_recording
+    import sounddevice as sd
+
+    audio_data = []
+
+    def audio_callback(indata, frames, time_info, status):
+        if status:
+            logger.warning(f"Audio status: {status}")
+        if is_recording:
+            audio_data.append(indata.copy())
+
+    try:
+        with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS,
+                           callback=audio_callback, dtype='float32'):
+            while is_recording:
+                sd.sleep(100)  # Sleep 100ms, check if still recording
+    except Exception as e:
+        logger.error(f"Microphone error: {e}")
+
+
+def start_voice_recording():
+    """Start recording audio in a background thread."""
+    global is_recording, audio_thread, audio_data
+
+    if is_recording:
+        return  # Already recording
+
+    logger.info("Voice recording started... (release ESC to stop)")
+    is_recording = True
+    audio_data = []
+
+    audio_thread = threading.Thread(target=record_audio, daemon=True)
+    audio_thread.start()
+
+
+def stop_voice_recording_and_send():
+    """Stop recording, transcribe audio, and send to API."""
+    global is_recording, audio_thread, audio_data
+
+    if not is_recording:
+        return
+
+    logger.info("Voice recording stopped, processing...")
+    is_recording = False
+
+    # Wait for recording thread to finish
+    if audio_thread:
+        audio_thread.join(timeout=1.0)
+
+    # Check if we have audio data
+    if not audio_data:
+        logger.warning("No audio recorded.")
+        return
+
+    # Combine audio chunks
+    try:
+        import numpy as np
+        import soundfile as sf
+
+        audio_array = np.concatenate(audio_data, axis=0)
+
+        # Minimum recording duration check (0.5 seconds)
+        if len(audio_array) < SAMPLE_RATE * 0.5:
+            logger.warning("Recording too short, ignoring.")
+            return
+
+        # Save to temporary file
+        AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+        temp_audio_path = AUDIO_DIR / f"recording_{int(time.time())}.wav"
+
+        sf.write(str(temp_audio_path), audio_array, SAMPLE_RATE)
+        logger.info(f"Audio saved: {temp_audio_path}")
+
+        # Transcribe
+        transcribed_text = transcribe_audio(temp_audio_path)
+
+        if transcribed_text:
+            # Send to API
+            send_transcribed_text(transcribed_text)
+
+    except Exception as e:
+        logger.error(f"Error processing audio: {e}")
+    finally:
+        # Cleanup temp file
+        try:
+            if 'temp_audio_path' in locals() and temp_audio_path.exists():
+                temp_audio_path.unlink()
+        except Exception:
+            pass
+
+
+def transcribe_audio(audio_path):
+    """Transcribe audio file using Whisper."""
+    try:
+        model = get_whisper_model()
+        if model is None:
+            return None
+
+        logger.info("Transcribing audio...")
+        segments, info = model.transcribe(str(audio_path), beam_size=5)
+
+        # Combine all segments
+        text = " ".join([segment.text.strip() for segment in segments])
+
+        if text:
+            logger.info(f"Transcription: {text[:100]}{'...' if len(text) > 100 else ''}")
+        else:
+            logger.warning("Transcription returned empty text.")
+
+        return text
+
+    except Exception as e:
+        logger.error(f"Transcription error: {e}")
+        return None
+
+
+def send_transcribed_text(text):
+    """Send transcribed text to the Code tab API."""
+    if not API_TOKEN:
+        logger.error("No API token provided!")
+        return
+
+    if not text or not text.strip():
+        logger.warning("No text to send.")
+        return
+
+    try:
+        response = requests.post(
+            f"{API_URL}/chat",
+            headers={
+                "Authorization": f"Bearer {API_TOKEN}",
+                "Content-Type": "application/json"
+            },
+            json={"message": text}
+        )
+
+        if response.status_code == 200:
+            logger.info("Transcribed text sent successfully.")
+        else:
+            logger.error(f"Failed to send text: {response.text}")
+    except Exception as e:
+        logger.error(f"Error sending transcribed text: {e}")
+
+
 # ============ Keyboard Handlers ============
 
 def on_press(key):
+    global last_esc_time, is_recording
+
     current_keys.add(key)
+
     try:
-        if key == keyboard.Key.down and keyboard.Key.esc in current_keys:
+        # Double-tap ESC detection for voice recording
+        if key == keyboard.Key.esc:
+            current_time = time.time()
+            time_since_last = current_time - last_esc_time
+
+            if time_since_last < DOUBLE_TAP_THRESHOLD and not is_recording:
+                # Double-tap detected - start recording
+                start_voice_recording()
+
+            last_esc_time = current_time
+
+        # Other hotkeys (ESC + arrow keys)
+        elif key == keyboard.Key.down and keyboard.Key.esc in current_keys:
             logger.info("Capturing screenshot...")
             capture_screenshot()
         elif key == keyboard.Key.up and keyboard.Key.esc in current_keys:
@@ -318,10 +511,17 @@ def on_press(key):
 
 
 def on_release(key):
+    global is_recording
+
     try:
         current_keys.remove(key)
     except KeyError:
         pass
+
+    # Stop voice recording when ESC is released
+    if is_recording and key == keyboard.Key.esc:
+        # Run transcription in background thread to not block keyboard listener
+        threading.Thread(target=stop_voice_recording_and_send, daemon=True).start()
 
 
 # ============ CLI Commands ============
@@ -370,6 +570,7 @@ def cmd_start(args):
     logger.info("Press ESC + Down to capture a screenshot.")
     logger.info("Press ESC + Up to send all stored screenshots.")
     logger.info("Press ESC + Right to send clipboard text to Code tab.")
+    logger.info("Double-tap ESC (hold on 2nd) to record voice and send transcription.")
     if not is_daemon:
         logger.info("Running... (Press Ctrl + C to exit)")
 

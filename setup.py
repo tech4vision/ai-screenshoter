@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="ai-screenshooter",
-    version="1.5.0",
+    version="1.6.0",
     packages=find_packages(),
     py_modules=["ai_screenshot"],
     install_requires=[
@@ -10,7 +10,11 @@ setup(
         "requests",
         "Pillow",
         "pygetwindow",
-        "pyperclip"
+        "pyperclip",
+        "sounddevice",
+        "soundfile",
+        "numpy",
+        "faster-whisper"
     ],
     entry_points={
         "console_scripts": [
