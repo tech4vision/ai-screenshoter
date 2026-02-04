@@ -32,7 +32,8 @@ DOUBLE_TAP_THRESHOLD = 0.5  # 500ms window for double-tap
 
 # Beep feedback constants
 BEEP_FREQUENCY = 800  # Hz
-BEEP_DURATION = 0.02  # seconds
+BEEP_DURATION = 0.01  # seconds (10ms)
+BEEP_VOLUME = 0.05  # 0.0 to 1.0
 BEEP_SAMPLE_RATE = 44100
 
 # Server URLs
@@ -230,7 +231,7 @@ def play_beep():
 
         # Generate a short sine wave
         t = np.linspace(0, BEEP_DURATION, int(BEEP_SAMPLE_RATE * BEEP_DURATION), False)
-        tone = np.sin(2 * np.pi * BEEP_FREQUENCY * t) * 0.3  # 0.3 = volume
+        tone = np.sin(2 * np.pi * BEEP_FREQUENCY * t) * BEEP_VOLUME
 
         # Apply fade out to avoid click
         fade_samples = int(BEEP_SAMPLE_RATE * 0.01)
