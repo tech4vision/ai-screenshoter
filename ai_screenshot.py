@@ -30,6 +30,11 @@ CHANNELS = 1  # Mono audio
 WHISPER_MODEL = "base"  # Options: tiny, base, small, medium, large
 DOUBLE_TAP_THRESHOLD = 0.5  # 500ms window for double-tap
 
+# Beep feedback constants
+BEEP_FREQUENCY = 800  # Hz
+BEEP_DURATION = 0.02  # seconds
+BEEP_SAMPLE_RATE = 44100
+
 # Server URLs
 PROD_URL = "https://service.tech4vision.net/ai-management-service/api/v1/sessions/code-challenge"
 LOCAL_URL = "http://localhost:8082/api/v1/sessions/code-challenge"
@@ -213,6 +218,28 @@ def setup_logging(daemon_mode):
         handler.setFormatter(logging.Formatter('%(message)s'))
 
     logger.addHandler(handler)
+
+
+# ============ Audio Feedback ============
+
+def play_beep():
+    """Play a short beep sound as feedback."""
+    try:
+        import numpy as np
+        import sounddevice as sd
+
+        # Generate a short sine wave
+        t = np.linspace(0, BEEP_DURATION, int(BEEP_SAMPLE_RATE * BEEP_DURATION), False)
+        tone = np.sin(2 * np.pi * BEEP_FREQUENCY * t) * 0.3  # 0.3 = volume
+
+        # Apply fade out to avoid click
+        fade_samples = int(BEEP_SAMPLE_RATE * 0.01)
+        tone[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+
+        # Play asynchronously (non-blocking)
+        sd.play(tone.astype(np.float32), BEEP_SAMPLE_RATE)
+    except Exception:
+        pass  # Silently fail if audio not available
 
 
 # ============ Screenshot Functions ============
@@ -522,6 +549,7 @@ def on_press(key):
 
             if time_since_last < DOUBLE_TAP_THRESHOLD and not is_recording:
                 # Double-tap detected - start recording
+                play_beep()
                 start_voice_recording()
 
             last_esc_time = current_time
@@ -532,12 +560,15 @@ def on_press(key):
 
         # Other hotkeys (ESC + arrow keys)
         if key == keyboard.Key.down and keyboard.Key.esc in current_keys:
+            play_beep()
             logger.info("Capturing screenshot...")
             capture_screenshot()
         elif key == keyboard.Key.up and keyboard.Key.esc in current_keys:
+            play_beep()
             logger.info("Sending all screenshots...")
             send_screenshots()
         elif key == keyboard.Key.right and keyboard.Key.esc in current_keys:
+            play_beep()
             logger.info("Sending clipboard text to Code tab...")
             send_clipboard_text()
     except AttributeError:
