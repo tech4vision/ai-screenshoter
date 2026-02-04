@@ -509,11 +509,14 @@ def send_transcribed_text(text):
 def on_press(key):
     global last_esc_time, is_recording
 
-    current_keys.add(key)
-
     try:
         # Double-tap ESC detection for voice recording
         if key == keyboard.Key.esc:
+            # Ignore repeated key events from holding ESC
+            if keyboard.Key.esc in current_keys:
+                return
+            current_keys.add(key)
+
             current_time = time.time()
             time_since_last = current_time - last_esc_time
 
@@ -523,8 +526,12 @@ def on_press(key):
 
             last_esc_time = current_time
 
+        # Track non-ESC keys for combo detection
+        else:
+            current_keys.add(key)
+
         # Other hotkeys (ESC + arrow keys)
-        elif key == keyboard.Key.down and keyboard.Key.esc in current_keys:
+        if key == keyboard.Key.down and keyboard.Key.esc in current_keys:
             logger.info("Capturing screenshot...")
             capture_screenshot()
         elif key == keyboard.Key.up and keyboard.Key.esc in current_keys:
