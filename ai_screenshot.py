@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import sys
 import signal
@@ -18,6 +19,7 @@ from pynput import keyboard
 # Constants
 PID_FILE = Path.home() / ".ai-screenshooter.pid"
 LOG_FILE = Path.home() / ".ai-screenshooter.log"
+META_FILE = Path.home() / ".ai-screenshooter.meta.json"
 SCREENSHOT_DIR = Path.home() / ".ai-screenshooter" / "screenshots"
 AUDIO_DIR = Path.home() / ".ai-screenshooter" / "audio"
 TIMEOUT_SECONDS = 5 * 60 * 60  # 5 hours
@@ -97,6 +99,31 @@ def cleanup_pid_file():
             PID_FILE.unlink()
     except Exception:
         pass
+    try:
+        if META_FILE.exists():
+            META_FILE.unlink()
+    except Exception:
+        pass
+
+
+def write_meta_file(server_mode, server_url):
+    """Write process metadata for status command."""
+    meta = {
+        "started_at": time.time(),
+        "server_mode": server_mode,
+        "server_url": server_url,
+    }
+    META_FILE.write_text(json.dumps(meta))
+
+
+def read_meta_file():
+    """Read process metadata, return None if invalid."""
+    if not META_FILE.exists():
+        return None
+    try:
+        return json.loads(META_FILE.read_text())
+    except (ValueError, IOError):
+        return None
 
 
 # ============ Process Management ============
@@ -530,18 +557,19 @@ def cmd_start(args):
     """Handle the start command."""
     global API_TOKEN, API_URL
 
+    is_daemon = getattr(args, 'daemon', False)
+
+    # Kill any existing instance (unless this is the daemon subprocess itself)
+    if not is_daemon:
+        killed = kill_existing_process()
+        if killed:
+            print("Replaced existing instance.")
+
     # If --background flag, spawn a new process and exit
     if args.background:
         print("Starting in background mode...")
-        killed = kill_existing_process()
-        if killed:
-            print("Killed existing instance.")
-
         start_background_process(args.token, args.local)
         return
-
-    # If --daemon flag (internal), this is the actual daemon process
-    is_daemon = getattr(args, 'daemon', False)
 
     if is_daemon:
         # Write PID file
@@ -565,6 +593,10 @@ def cmd_start(args):
     API_URL = LOCAL_URL if args.local else PROD_URL
 
     server_mode = "LOCAL" if args.local else "PRODUCTION"
+
+    # Write metadata for status command
+    write_meta_file(server_mode, API_URL)
+
     logger.info("AI Screenshot CLI started.")
     logger.info(f"Server: {server_mode} ({API_URL})")
     logger.info("Press ESC + Down to capture a screenshot.")
@@ -584,11 +616,38 @@ def cmd_status(args):
     pid = get_pid_from_file()
     if pid and is_process_running(pid):
         print(f"ai-screenshooter is running (PID: {pid})")
+
+        meta = read_meta_file()
+        if meta:
+            # Uptime
+            elapsed = time.time() - meta.get("started_at", time.time())
+            hours, remainder = divmod(int(elapsed), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            print(f"  Uptime:  {hours}h {minutes}m {seconds}s")
+
+            # Time remaining
+            remaining = TIMEOUT_SECONDS - elapsed
+            if remaining > 0:
+                rh, rr = divmod(int(remaining), 3600)
+                rm, rs = divmod(rr, 60)
+                print(f"  Expires: {rh}h {rm}m {rs}s remaining")
+
+            # Server
+            print(f"  Server:  {meta.get('server_mode', 'UNKNOWN')} ({meta.get('server_url', '')})")
+
+        print()
+        print("  Listening for hotkeys:")
+        print("    ESC + Down        Capture screenshot")
+        print("    ESC + Up          Send all screenshots")
+        print("    ESC + Right       Send clipboard text to Code tab")
+        print("    Double-tap ESC    Record voice, transcribe and send")
+
         return 0
     else:
         print("ai-screenshooter is not running")
         if PID_FILE.exists():
-            print(f"(stale PID file exists at {PID_FILE})")
+            print(f"(stale PID file found, cleaning up)")
+            cleanup_pid_file()
         return 1
 
 
