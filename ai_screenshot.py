@@ -33,7 +33,7 @@ DOUBLE_TAP_THRESHOLD = 0.5  # 500ms window for double-tap
 # Beep feedback constants
 BEEP_FREQUENCY = 800  # Hz
 BEEP_DURATION = 0.01  # seconds (10ms)
-BEEP_VOLUME = 0.1  # 0.0 to 1.0
+BEEP_VOLUME = 0.5  # 0.0 to 1.0
 BEEP_SAMPLE_RATE = 44100
 
 # Server URLs
