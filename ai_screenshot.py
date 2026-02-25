@@ -38,7 +38,7 @@ BEEP_SAMPLE_RATE = 44100
 
 # Server URLs
 PROD_URL = "https://service.tech4vision.net/ai-management-service/api/v1/sessions/code-challenge"
-LOCAL_URL = "http://192.168.0.25/ai-management-service/api/v1/sessions/code-challenge"
+LOCAL_URL = "http://192.168.8.201/ai-management-service/api/v1/sessions/code-challenge"
 
 # Global state
 screenshot_list = []
